@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+import binascii
 import struct
-import os
 
 HNLT_FILE = "/sys/firmware/acpi/tables/NHLT"
 
@@ -62,7 +62,7 @@ def print_format_config(idx, read_bytes):
 	print('cb size:\t\t%d' % (struct.unpack('H', read_bytes[16:18])[0]))
 	print('valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[18:20])[0]))
 	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
-	print('subformat:\t\t%s' % (read_bytes[24:40]))
+	print('subformat:\t\t%s' % (binascii.hexlify(read_bytes[24:40], b' ')))
 
 	config_len = print_specific_config_raw(read_bytes[40:])
 
@@ -94,7 +94,7 @@ def print_specific_config_raw(read_bytes):
 	print('==== Specific Config ====')
 	print('size:\t\t\t%d' % (size))
 	if size != 0:
-		print('caps:\t\t\t%s' % (read_bytes[4:4+size]))
+		print('caps:\t\t\t%s' % (binascii.hexlify(read_bytes[4:4+size], b' ')))
 
 	return 4 + size
 
