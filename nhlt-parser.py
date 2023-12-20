@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import binascii
 import struct
+import uuid
 
 HNLT_FILE = "/sys/firmware/acpi/tables/NHLT"
 
@@ -62,7 +63,7 @@ def print_format_config(idx, read_bytes):
 	print('cb size:\t\t%d' % (struct.unpack('H', read_bytes[16:18])[0]))
 	print('valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[18:20])[0]))
 	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
-	print('subformat:\t\t%s' % (binascii.hexlify(read_bytes[24:40], b' ')))
+	print('subformat:\t\t%s' % (str(uuid.UUID(bytes = read_bytes[24:40]))))
 
 	config_len = print_specific_config_raw(read_bytes[40:])
 
