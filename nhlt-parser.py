@@ -203,6 +203,7 @@ def print_endpoint_descriptor(idx, read_bytes):
 	print('')
 
 	#print('len %d' % (19+specific_config_len+formats_config_len))
+	#print('print_endpoint_descriptor: len %d' % (length))
 	return length
 
 '''
@@ -251,8 +252,10 @@ def main():
 		descriptor_len = print_endpoint_descriptor(idx, read_bytes[start:])
 		start += descriptor_len
 
-	config_len = print_specific_config_raw(read_bytes[start:])
-	start += config_len
+	if start < len(read_bytes):
+		# OEDConfig exists
+		config_len = print_specific_config_raw(read_bytes[start:])
+		start += config_len
 
 	#print('main: len %d' % (start))
 
