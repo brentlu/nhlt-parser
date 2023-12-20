@@ -108,6 +108,9 @@ def print_specific_config(read_bytes):
 
 	config_len = print_specific_config_raw(read_bytes)
 
+	if config_len == 4:
+		return config_len
+
 	print('virtual slot:\t\t%d' % (read_bytes[4]))
 
 	config_type = read_bytes[5]
