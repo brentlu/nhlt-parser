@@ -248,9 +248,9 @@ def print_acpi_header(read_bytes):
 	print('checksum:\t\t%d' % (read_bytes[9]))
 	print('oem id:\t\t\t%s' % (struct.unpack('6s', read_bytes[10:16])[0]))
 	print('oem table id:\t\t%s' % (struct.unpack('8s', read_bytes[16:24])[0]))
-	print('oem revision:\t\t0x%x' % (struct.unpack('I', read_bytes[25:29])[0]))
-	print('asl compiler id:\t%s' % (struct.unpack('4s', read_bytes[29:33])[0]))
-	print('asl compiler revision:\t0x%x' % (struct.unpack('I', read_bytes[33:37])[0]))
+	print('oem revision:\t\t0x%x' % (struct.unpack('I', read_bytes[24:28])[0]))
+	print('asl compiler id:\t%s' % (struct.unpack('4s', read_bytes[28:32])[0]))
+	print('asl compiler revision:\t0x%x' % (struct.unpack('I', read_bytes[32:36])[0]))
 	print('')
 
 	return 36
