@@ -32,6 +32,26 @@ struct nhlt_fmt_cfg {
 } __packed;
 '''
 def print_format_config(idx, read_bytes):
+	def get_channel_mask_string(channel_mask):
+		channel_masks = ['SPEAKER_FRONT_LEFT', 'SPEAKER_FRONT_RIGHT', 'SPEAKER_FRONT_CENTER', 'SPEAKER_LOW_FREQUENCY', 'SPEAKER_BACK_LEFT', 'SPEAKER_BACK_RIGHT', 'SPEAKER_FRONT_LEFT_OF_CENTER', 'SPEAKER_FRONT_RIGHT_OF_CENTER', 'SPEAKER_BACK_CENTER', 'SPEAKER_SIDE_LEFT', 'SPEAKER_SIDE_RIGHT', 'SPEAKER_TOP_CENTER', 'SPEAKER_TOP_FRONT_LEFT', 'SPEAKER_TOP_FRONT_CENTER', 'SPEAKER_TOP_FRONT_RIGHT', 'SPEAKER_TOP_BACK_LEFT', 'SPEAKER_TOP_BACK_CENTER', 'SPEAKER_TOP_BACK_RIGHT'
+]
+		mask = 0x1
+		mask_string = ''
+
+		for idx in range(len(channel_masks)):
+			if mask & channel_mask:
+				if len(mask_string):
+					mask_string += ' '
+				mask_string += channel_masks[idx]
+			mask <<= 1
+
+		if len(mask_string) == 0:
+			mask_string = 'NONE'
+
+		return mask_string
+
+	channel_mask = struct.unpack('I', read_bytes[20:24])[0]
+
 	print('==== Format Config %d ====' % (idx))
 	print('format tag:\t\t0x%x' % (struct.unpack('H', read_bytes[0:2])[0]))
 	print('channels:\t\t%d' % (struct.unpack('H', read_bytes[2:4])[0]))
@@ -41,7 +61,7 @@ def print_format_config(idx, read_bytes):
 	print('bits per sample:\t%d' % (struct.unpack('H', read_bytes[14:16])[0]))
 	print('cb size:\t\t%d' % (struct.unpack('H', read_bytes[16:18])[0]))
 	print('valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[18:20])[0]))
-	print('channel mask:\t\t0x%x' % (struct.unpack('I', read_bytes[20:24])[0]))
+	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
 	print('subformat:\t\t%s' % (read_bytes[24:40]))
 
 	config_len = print_specific_config_raw(read_bytes[40:])
