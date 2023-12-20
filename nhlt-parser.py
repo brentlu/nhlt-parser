@@ -65,7 +65,7 @@ def print_format_config(idx, read_bytes):
 	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
 	print('subformat:\t\t%s' % (str(uuid.UUID(bytes = read_bytes[24:40]))))
 
-	config_len = print_specific_config_raw(read_bytes[40:])
+	config_len = print_specific_config(read_bytes[40:])
 
 	return 40 + config_len
 
@@ -86,10 +86,15 @@ def print_formats_config(read_bytes):
 		config_len = print_format_config(idx, read_bytes[start:])
 		start += config_len
 
-	#print('print_formats_config: len %d' % (start))
 	return start
 
-def print_specific_config_raw(read_bytes):
+'''
+struct nhlt_specific_cfg {
+	u32 size;
+	u8 caps[];
+} __packed;
+'''
+def print_specific_config(read_bytes):
 	size = struct.unpack('I', read_bytes[0:4])[0]
 
 	print('==== Specific Config ====')
@@ -99,13 +104,7 @@ def print_specific_config_raw(read_bytes):
 
 	return 4 + size
 
-'''
-struct nhlt_specific_cfg {
-	u32 size;
-	u8 caps[];
-} __packed;
-'''
-def print_specific_config(read_bytes):
+def print_device_specific_config(read_bytes, config_len):
 	def get_array_type_string(array_type_ex):
 		array_types = ['Linear 2-element, Small', 'Linear 2-element, Big', 'Linear 4-element, 1st geometry', 'Planar L-shaped 4-element', 'Linear 4-element, 2nd geometry', 'Vendor defined']
 		extensions = ['No extension', 'Microphone SNR and Sensitivity extension', 'Reserved']
@@ -127,30 +126,31 @@ def print_specific_config(read_bytes):
 
 		return array_types[array_type] + ' - ' + extensions[extension]
 
-	config_len = print_specific_config_raw(read_bytes)
+	print('virtual slot:\t\t%d' % (read_bytes[0]))
 
-	if config_len == 4:
-		return config_len
-
-	print('virtual slot:\t\t%d' % (read_bytes[4]))
-
-	config_type = read_bytes[5]
+	config_type = read_bytes[1]
 	if config_type == 0:
 		print('config type:\t\t0 - Generic')
+
+		if config_len != 2:
+			print('device specific config: length expected 2, actural %d' % (config_len))
 	elif config_type == 1:
-		array_type_ex = read_bytes[6]
+		array_type_ex = read_bytes[2]
 		print('config type:\t\t1 - Mic Array')
 		print('array type:\t\t0x%x - %s' % (array_type_ex, get_array_type_string(array_type_ex)))
+
+		if config_len != 3:
+			print('device specific config: length expected 3, actural %d' % (config_len))
 	elif config_type == 3:
 		print('config type:\t3 - Render Feedback')
-		print('feedback virtual slot:\t%d' % (read_bytes[6]))
-		print('feedback channels:\t%d' % (struct.unpack('H', read_bytes[7:9])[0]))
-		print('feedback valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[9:11])[0]))
+		print('feedback virtual slot:\t%d' % (read_bytes[2]))
+		print('feedback channels:\t%d' % (struct.unpack('H', read_bytes[3:5])[0]))
+		print('feedback valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[5:7])[0]))
+
+		if config_len != 7:
+			print('device specific config: length expected 7, actural %d' % (config_len))
 	else:
 		print('config type:\t%d - not supported in Windows' % (config_type))
-
-	#print('print_specific_config: len %d' % (config_len))
-	return config_len
 
 '''
 struct nhlt_endpoint {
@@ -217,26 +217,36 @@ def print_endpoint_descriptor(idx, read_bytes):
 	print('direction:\t\t%d - %s' % (direction, get_direction_string(direction)))
 	print('virtual bus id:\t\t%d' % (read_bytes[18]))
 
-	specific_config_len = print_specific_config(read_bytes[19:])
+	start = 19
+	specific_config_len = print_specific_config(read_bytes[start:])
 
-	formats_config_len = print_formats_config(read_bytes[19+specific_config_len:])
+	if specific_config_len > 4:
+		print_device_specific_config(read_bytes[start+4:], specific_config_len-4)
+	else:
+		print('endpoint_descriptor: missing device specific config')
+
+	start += specific_config_len
+
+	formats_config_len = print_formats_config(read_bytes[start:])
+	start += formats_config_len
 
 	print('')
 
-	#print('len %d' % (19+specific_config_len+formats_config_len))
-	#print('print_endpoint_descriptor: len %d' % (length))
+	if start != length:
+		print('endpoint_descriptor: length expected %d, actural %d' % (length, start))
+
 	return length
 
 '''
 struct acpi_table_header {
-	char signature[ACPI_NAMESEG_SIZE];	/* ASCII table signature */
+	char signature[4];	/* ASCII table signature */
 	u32 length;		/* Length of table in bytes, including this header */
 	u8 revision;		/* ACPI Specification minor version number */
 	u8 checksum;		/* To make sum of entire table == 0 */
-	char oem_id[ACPI_OEM_ID_SIZE];	/* ASCII OEM identification */
-	char oem_table_id[ACPI_OEM_TABLE_ID_SIZE];	/* ASCII OEM table identification */
+	char oem_id[6];	/* ASCII OEM identification */
+	char oem_table_id[8];	/* ASCII OEM table identification */
 	u32 oem_revision;	/* OEM revision number */
-	char asl_compiler_id[ACPI_NAMESEG_SIZE];	/* ASCII ASL compiler vendor ID */
+	char asl_compiler_id[4];	/* ASCII ASL compiler vendor ID */
 	u32 asl_compiler_revision;	/* ASL compiler version */
 };
 '''
@@ -249,14 +259,13 @@ def print_acpi_header(read_bytes):
 	print('oem id:\t\t\t%s' % (struct.unpack('6s', read_bytes[10:16])[0]))
 	print('oem table id:\t\t%s' % (struct.unpack('8s', read_bytes[16:24])[0]))
 	print('oem revision:\t\t0x%x' % (struct.unpack('I', read_bytes[24:28])[0]))
-	print('asl compiler id:\t%s' % (struct.unpack('4s', read_bytes[28:32])[0]))
-	print('asl compiler revision:\t0x%x' % (struct.unpack('I', read_bytes[32:36])[0]))
+	print('creator id:\t\t%s' % (struct.unpack('4s', read_bytes[28:32])[0]))
+	print('creator revision:\t0x%x' % (struct.unpack('I', read_bytes[32:36])[0]))
 	print('')
 
 	return 36
 
 def main():
-
 	with open(HNLT_FILE, 'rb') as file:
 		read_bytes = file.read()
 
@@ -275,10 +284,13 @@ def main():
 
 	if start < len(read_bytes):
 		# OEDConfig exists
-		config_len = print_specific_config_raw(read_bytes[start:])
+		config_len = print_specific_config(read_bytes[start:])
 		start += config_len
+	else:
+		print('main: missing OEDConfig')
 
-	#print('main: len %d' % (start))
+	if start != len(read_bytes):
+		print('main: length %d read, %d parsed' % (read_bytes, start))
 
 	return
 
