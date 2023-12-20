@@ -85,23 +85,45 @@ struct nhlt_specific_cfg {
 } __packed;
 '''
 def print_specific_config(read_bytes):
+	def get_array_type_string(array_type_ex):
+		array_types = ['Linear 2-element, Small', 'Linear 2-element, Big', 'Linear 4-element, 1st geometry', 'Planar L-shaped 4-element', 'Linear 4-element, 2nd geometry', 'Vendor defined']
+		extensions = ['No extension', 'Microphone SNR and Sensitivity extension', 'Reserved']
+
+		array_type = array_type_ex & 0x0F
+
+		if array_type < 0xA:
+			return 'invalid'
+
+		array_type -= 0xA
+
+		if array_type >= len(array_types):
+			return 'invalid'
+
+		extension = (array_type_ex & 0xF0) >> 4
+
+		if extension >= len(extensions):
+			extension = len(extensions) - 1
+
+		return array_types[array_type] + ' - ' + extensions[extension]
+
 	config_len = print_specific_config_raw(read_bytes)
 
 	print('virtual slot:\t\t%d' % (read_bytes[4]))
 
 	config_type = read_bytes[5]
 	if config_type == 0:
-		print('config type:\t\tgeneric')
+		print('config type:\t\t0 - Generic')
 	elif config_type == 1:
-		print('config type:\tmic array')
-		print('array type:\t0x%x' % (read_bytes[6]))
+		array_type_ex = read_bytes[6]
+		print('config type:\t\t1 - Mic Array')
+		print('array type:\t\t0x%x - %s' % (array_type_ex, get_array_type_string(array_type_ex)))
 	elif config_type == 3:
-		print('config type:\trender feedback')
+		print('config type:\t3 - Render Feedback')
 		print('feedback virtual slot:\t%d' % (read_bytes[6]))
 		print('feedback channels:\t%d' % (struct.unpack('H', read_bytes[7:9])[0]))
 		print('feedback valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[9:11])[0]))
 	else:
-		print('config type: not support')
+		print('config type:\t%d - not supported in Windows' % (config_type))
 
 	#print('print_specific_config: len %d' % (config_len))
 	return config_len
