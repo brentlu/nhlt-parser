@@ -65,7 +65,7 @@ def print_format_config(idx, read_bytes):
 	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
 	print('subformat:\t\t%s' % (str(uuid.UUID(bytes = read_bytes[24:40]))))
 
-	config_len = print_specific_config('Config', read_bytes[40:])
+	config_len = print_specific_config('Format %d Config' % (idx), read_bytes[40:])
 
 	return 40 + config_len
 
@@ -197,8 +197,8 @@ def print_device_specific_config(read_bytes, config_len):
 			print('number of microphones:\t%d' % (mic_count))
 
 			for idx in range(mic_count):
-				config_len = print_vendor_mic_config(idx, read_bytes[start:])
-				start += config_len
+				mic_config_len = print_vendor_mic_config(idx, read_bytes[start:])
+				start += mic_config_len
 
 		if extension == 1:
 			# snr and sensitivity extension
@@ -345,7 +345,7 @@ def main():
 	endpoint_count = read_bytes[start]
 	start += 1
 
-	print('%d endpoint descriptors found\n' % (endpoint_count))
+	print('main: %d endpoint descriptors found\n' % (endpoint_count))
 
 	for idx in range(endpoint_count):
 		descriptor_len = print_endpoint_descriptor(idx, read_bytes[start:])
