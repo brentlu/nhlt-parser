@@ -53,7 +53,7 @@ def print_format_config(idx, read_bytes):
 
 	channel_mask = struct.unpack('I', read_bytes[20:24])[0]
 
-	print('==== Format Config %d ====' % (idx))
+	print('==== Format %d ====' % (idx))
 	print('format tag:\t\t0x%x' % (struct.unpack('H', read_bytes[0:2])[0]))
 	print('channels:\t\t%d' % (struct.unpack('H', read_bytes[2:4])[0]))
 	print('samples per sec:\t%d' % (struct.unpack('I', read_bytes[4:8])[0]))
@@ -65,7 +65,7 @@ def print_format_config(idx, read_bytes):
 	print('channel mask:\t\t0x%x - %s' % (channel_mask, get_channel_mask_string(channel_mask)))
 	print('subformat:\t\t%s' % (str(uuid.UUID(bytes = read_bytes[24:40]))))
 
-	config_len = print_specific_config(read_bytes[40:])
+	config_len = print_specific_config('Config', read_bytes[40:])
 
 	return 40 + config_len
 
@@ -76,17 +76,54 @@ struct nhlt_fmt {
 } __packed;
 '''
 def print_formats_config(read_bytes):
-	fmt_count = read_bytes[0]
+	format_count = read_bytes[0]
 	start = 1
 
-	print('==== Formats Config ====')
-	print('count:\t\t\t%d' % (fmt_count))
+	print('==== Format Configs ====')
+	print('count:\t\t\t%d' % (format_count))
 
-	for idx in range(fmt_count):
+	for idx in range(format_count):
 		config_len = print_format_config(idx, read_bytes[start:])
 		start += config_len
 
 	return start
+
+def print_vendor_mic_config(idx, read_bytes):
+	def get_mic_type_string(mic_type):
+		mic_types = ['KSMICARRAY_MICTYPE_OMNIDIRECTIONAL', 'KSMICARRAY_MICTYPE_SUBCARDIOID', 'KSMICARRAY_MICTYPE_CARDIOID', 'KSMICARRAY_MICTYPE_SUPERCARDIOID', 'KSMICARRAY_MICTYPE_HYPERCARDIOID', 'KSMICARRAY_MICTYPE_8SHAPED', 'Reserved', 'KSMICARRAY_MICTYPE_VENDORDEFINED']
+
+		if mic_type >= len(mic_types):
+			return 'invalid'
+
+		return mic_types[mic_type]
+
+	def get_panel_location_string(panel_location):
+		panel_locations = ['Top', 'Bottom', 'Left', 'Right', 'Front (default)', 'Rear']
+
+		if panel_location >= len(panel_locations):
+			return 'invalid'
+
+		return panel_locations[panel_location]
+
+	mic_type = read_bytes[0]
+	panel_location = read_bytes[1]
+
+	print('==== Vendor Microphone Config %d ====' % (idx))
+	print('type:\t\t\t%d - %s' % (mic_type, get_mic_type_string(mic_type)))
+	print('panel:\t\t\t%d - %s' % (panel_location, get_panel_location_string(panel_location)))
+	print('distance:\t\t%d' % (struct.unpack('h', read_bytes[2:4])[0]))
+	print('horizontal offset:\t%d' % (struct.unpack('h', read_bytes[4:6])[0]))
+	print('vertical offset:\t%d' % (struct.unpack('h', read_bytes[6:8])[0]))
+	print('frequency low band:\t%d' % (read_bytes[8]))
+	print('frequency high band:\t%d' % (read_bytes[9]))
+	print('direction angle:\t%d' % (struct.unpack('h', read_bytes[10:12])[0]))
+	print('elevation angle:\t%d' % (struct.unpack('h', read_bytes[12:14])[0]))
+	print('work v angle begin:\t%d' % (struct.unpack('h', read_bytes[14:16])[0]))
+	print('work v angle end:\t%d' % (struct.unpack('h', read_bytes[16:18])[0]))
+	print('work h angle begin:\t%d' % (struct.unpack('h', read_bytes[18:20])[0]))
+	print('work h angle end:\t%d' % (struct.unpack('h', read_bytes[20:22])[0]))
+
+	return 22
 
 '''
 struct nhlt_specific_cfg {
@@ -94,22 +131,34 @@ struct nhlt_specific_cfg {
 	u8 caps[];
 } __packed;
 '''
-def print_specific_config(read_bytes):
+def print_specific_config(title, read_bytes):
 	size = struct.unpack('I', read_bytes[0:4])[0]
 
-	print('==== Specific Config ====')
+	print('==== %s ====' % (title))
 	print('size:\t\t\t%d' % (size))
 	if size != 0:
 		print('caps:\t\t\t%s' % (binascii.hexlify(read_bytes[4:4+size], b' ')))
 
 	return 4 + size
 
+'''
+struct nhlt_device_specific_config {
+	u8 virtual_slot;
+	u8 config_type;
+} __packed;
+'''
 def print_device_specific_config(read_bytes, config_len):
-	def get_array_type_string(array_type_ex):
+	def get_config_type_string(config_type):
+		config_types = ['Generic', 'Mic Array', 'Render with Loopback', 'Render Feedback']
+
+		if config_type >= len(config_types):
+			return 'invalid'
+
+		return config_types[config_type]
+
+	def get_array_type_string(array_type, extension):
 		array_types = ['Linear 2-element, Small', 'Linear 2-element, Big', 'Linear 4-element, 1st geometry', 'Planar L-shaped 4-element', 'Linear 4-element, 2nd geometry', 'Vendor defined']
 		extensions = ['No extension', 'Microphone SNR and Sensitivity extension', 'Reserved']
-
-		array_type = array_type_ex & 0x0F
 
 		if array_type < 0xA:
 			return 'invalid'
@@ -119,38 +168,58 @@ def print_device_specific_config(read_bytes, config_len):
 		if array_type >= len(array_types):
 			return 'invalid'
 
-		extension = (array_type_ex & 0xF0) >> 4
-
 		if extension >= len(extensions):
 			extension = len(extensions) - 1
 
 		return array_types[array_type] + ' - ' + extensions[extension]
 
-	print('virtual slot:\t\t%d' % (read_bytes[0]))
-
 	config_type = read_bytes[1]
-	if config_type == 0:
-		print('config type:\t\t0 - Generic')
+	start = 2
 
-		if config_len != 2:
-			print('device specific config: length expected 2, actural %d' % (config_len))
-	elif config_type == 1:
+	print('virtual slot:\t\t%d' % (read_bytes[0]))
+	print('config type:\t\t%d - %s' % (config_type, get_config_type_string(config_type)))
+
+	if config_type == 1:
+		# mic array
 		array_type_ex = read_bytes[2]
-		print('config type:\t\t1 - Mic Array')
-		print('array type:\t\t0x%x - %s' % (array_type_ex, get_array_type_string(array_type_ex)))
+		start += 1
 
-		if config_len != 3:
-			print('device specific config: length expected 3, actural %d' % (config_len))
+		array_type = array_type_ex & 0x0F
+		extension = (array_type_ex & 0xF0) >> 4
+
+		print('array type:\t\t0x%x - %s' % (array_type_ex, get_array_type_string(array_type, extension)))
+
+		if array_type == 0xF:
+			# vendor defined
+			mic_count = read_bytes[start]
+			start += 1
+
+			print('number of microphones:\t%d' % (mic_count))
+
+			for idx in range(mic_count):
+				config_len = print_vendor_mic_config(idx, read_bytes[start:])
+				start += config_len
+
+		if extension == 1:
+			# snr and sensitivity extension
+			# TODO: need to test with real device
+			snr = struct.unpack('I', read_bytes[start:start+4])[0]
+			sensitivity = struct.unpack('I', read_bytes[start+4:start+8])[0]
+			start += 8
+
+			print('snr:\t%d.%d' % (snr >> 16, snr & 0xFFFF))
+			print('sensitivity:\t%d.%d' % (sensitivity >> 16, sensitivity & 0xFFFF))
+
 	elif config_type == 3:
-		print('config type:\t3 - Render Feedback')
+		# render feedback
 		print('feedback virtual slot:\t%d' % (read_bytes[2]))
 		print('feedback channels:\t%d' % (struct.unpack('H', read_bytes[3:5])[0]))
 		print('feedback valid bits per sample:\t%d' % (struct.unpack('H', read_bytes[5:7])[0]))
 
-		if config_len != 7:
-			print('device specific config: length expected 7, actural %d' % (config_len))
-	else:
-		print('config type:\t%d - not supported in Windows' % (config_type))
+		start = 7
+
+	if config_len != start:
+		print('device specific config: length %d, parsed %d' % (config_len, start))
 
 '''
 struct nhlt_endpoint {
@@ -218,22 +287,22 @@ def print_endpoint_descriptor(idx, read_bytes):
 	print('virtual bus id:\t\t%d' % (read_bytes[18]))
 
 	start = 19
-	specific_config_len = print_specific_config(read_bytes[start:])
+	config_len = print_specific_config('Endpoint Config', read_bytes[start:])
 
-	if specific_config_len > 4:
-		print_device_specific_config(read_bytes[start+4:], specific_config_len-4)
+	if config_len > 4:
+		print_device_specific_config(read_bytes[start+4:], config_len-4)
 	else:
-		print('endpoint_descriptor: missing device specific config')
+		print('endpoint_descriptor: missing endpoint config')
 
-	start += specific_config_len
+	start += config_len
 
-	formats_config_len = print_formats_config(read_bytes[start:])
-	start += formats_config_len
+	config_len = print_formats_config(read_bytes[start:])
+	start += config_len
 
 	print('')
 
 	if start != length:
-		print('endpoint_descriptor: length expected %d, actural %d' % (length, start))
+		print('endpoint_descriptor: length %d, parsed %d' % (length, start))
 
 	return length
 
@@ -284,13 +353,13 @@ def main():
 
 	if start < len(read_bytes):
 		# OEDConfig exists
-		config_len = print_specific_config(read_bytes[start:])
+		config_len = print_specific_config('OED Config', read_bytes[start:])
 		start += config_len
 	else:
-		print('main: missing OEDConfig')
+		print('main: missing OED config')
 
 	if start != len(read_bytes):
-		print('main: length %d read, %d parsed' % (read_bytes, start))
+		print('main: length %d, %d parsed' % (read_bytes, start))
 
 	return
 
